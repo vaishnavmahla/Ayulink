@@ -1,0 +1,40 @@
+# =========================
+# Node & Dependencies
+# =========================
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json # (Optional: keep if you want strict versioning, ignore if using yarn)
+
+# =========================
+# Security & Environments (CRITICAL)
+# =========================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+
+# =========================
+# Frontend Build Files
+# =========================
+frontend/dist/
+frontend/build/
+.eslintcache
+
+# =========================
+# Database (Local)
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# =========================
+# OS & Editor Files
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

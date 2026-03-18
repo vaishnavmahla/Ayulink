@@ -1,0 +1,91 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Roles for Security & Access Control
+enum Role {
+  ADMIN
+  DOCTOR
+  PATIENT
+}
+
+// 2. Base User model for Authentication
+model User {
+  id        Int      @id @default(autoincrement())
+  role      Role     @default(PATIENT) 
+  name      String
+  email     String   @unique
+  password  String   
+
+  // Profiles
+  doctorProfile  Doctor?
+  patientProfile Patient?
+}
+
+// 3. Doctor-specific details
+model Doctor {
+  id             Int           @id @default(autoincrement())
+  userId         Int           @unique
+  user           User          @relation(fields: [userId], references: [id])
+  specialization String
+  appointments   Appointment[]
+}
+
+// 4. Patient-specific details and history
+model Patient {
+  id             Int            @id @default(autoincrement())
+  userId         Int            @unique
+  user           User           @relation(fields: [userId], references: [id])
+  medicalHistory String?       
+  appointments   Appointment[]
+  reports        HealthReport[]
+  prescriptions  Prescription[]  // <--- ADD THIS LINE HERE
+}
+
+// 5. Appointments linking Doctors and Patients
+model Appointment {
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  patientId Int
+  doctorId  Int
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+  status    String   @default("Scheduled")
+}
+
+model HealthReport {
+  id            Int      @id @default(autoincrement())
+  patientId     Int
+  patient       Patient  @relation(fields: [patientId], references: [id])
+  symptoms      String
+  diagnosis     String
+  bloodPressure String?
+  oxygenLevel   Int?
+  cholesterol   Int?
+  // --- NEW METRICS ---
+  sugarLevel    Int?     // e.g., 105
+  heartRate     Int?     // e.g., 72
+  temperature   Float?   // e.g., 98.6
+  stressIndex   Int?     // e.g., 45 (out of 100)
+  sleepScore    Int?     // e.g., 85 (out of 100)
+  createdAt     DateTime @default(now())
+}
+
+model Prescription {
+  id          Int      @id @default(autoincrement())
+  patientId   Int
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  doctorName  String
+  medicine    String   // e.g., "Paracetamol"
+  dosage      String   // e.g., "500mg"
+  frequency   String   // e.g., "1-0-1 (After food)"
+  duration    String   // e.g., "5 days"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
