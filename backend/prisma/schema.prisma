@@ -52,11 +52,12 @@ model Patient {
 model Appointment {
   id        Int      @id @default(autoincrement())
   date      DateTime
+  time      String
   patientId Int
   doctorId  Int
   patient   Patient  @relation(fields: [patientId], references: [id])
   doctor    Doctor   @relation(fields: [doctorId], references: [id])
-  status    String   @default("Scheduled")
+  status    AppointmentStatus @default(PENDING)
 }
 
 model HealthReport {
@@ -88,4 +89,11 @@ model Prescription {
   duration    String   // e.g., "5 days"
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+}
+
+enum AppointmentStatus {
+  PENDING
+  APPROVED
+  CANCELLED
+  COMPLETED
 }

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Activity, Users, Calendar, ClipboardList, LogOut, Clock, FileText, ActivitySquare, Heart, X } from 'lucide-react';
+import { io } from 'socket.io-client';
+
 
 const DoctorDashboard = () => {
   const [appointments, setAppointments] = useState([]);
@@ -32,6 +34,29 @@ const DoctorDashboard = () => {
       fetchPatientReports(selectedPatient.patientId);
     }
   }, [selectedPatient]);
+
+  // --- REAL-TIME SOCKET CONNECTION ---
+  useEffect(() => {
+    // 1. Connect to the backend tunnel
+    const socket = io('http://localhost:3000');
+
+    // 2. Listen for the exact event name we used in the backend
+    socket.on("new_booking_alert", (data) => {
+      // Check if the alert is actually for THIS logged-in doctor
+      // (Assuming Dr. Aditi is doctor ID 1 right now)
+      if (data.doctorId === 1) { 
+        // Play a browser notification sound (optional but cool!)
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.play().catch(e => console.log("Audio blocked by browser"));
+        
+        // Refresh the queue automatically!
+        fetchAppointments(); 
+      }
+    });
+
+    // Cleanup the tunnel when the doctor logs out or leaves the page
+    return () => socket.disconnect();
+  }, []);
 
   const fetchAppointments = async () => {
     try {
@@ -124,21 +149,60 @@ const DoctorDashboard = () => {
                 <p className="text-slate-500 text-center mt-10">No appointments scheduled for today.</p>
               ) : (
                 appointments.map((apt) => (
-                  <button 
-                    key={apt.id}
+                  <div 
+                    key={apt.id} 
                     onClick={() => setSelectedPatient(apt)}
-                    className={`w-full text-left p-4 rounded-2xl border transition-all flex flex-col gap-2 relative overflow-hidden group
+                    className={`relative group cursor-pointer w-full text-left p-4 rounded-2xl border transition-all flex flex-col gap-2 overflow-hidden
                       ${selectedPatient?.id === apt.id ? 'bg-emerald-900/20 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-slate-950 border-slate-800 hover:border-emerald-500/50'}`}
                   >
                     <div className="flex justify-between items-center w-full">
-                      <p className="font-bold text-slate-200 text-lg">{apt.patient.user.name}</p>
-                      <span className="text-xs font-bold bg-slate-800 text-slate-300 px-2 py-1 rounded-md flex items-center gap-1">
-                        <Clock size={12}/> {new Date(apt.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                      <div>
+                        <p className="font-bold text-slate-200 text-lg">{apt.patient.user.name}</p>
+                        <p className="text-xs text-slate-400 mt-1">Patient ID: #{apt.patientId}</p>
+                      </div>
+                      
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="text-xs font-bold bg-slate-800 text-slate-300 px-2 py-1 rounded-md flex items-center gap-1">
+                          <Clock size={12}/> {apt.time}
+                        </span>
+                        
+                        {/* DYNAMIC BADGE & BUTTON ZONE */}
+                        <div className="h-[24px] flex items-center justify-end">
+                          {apt.status === 'PENDING' ? (
+                            <>
+                              {/* Orange Badge (Hides on Hover) */}
+                              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded border border-amber-500/50 animate-pulse group-hover:hidden">
+                                Pending Request
+                              </span>
+                              
+                              {/* Green Button (Shows on Hover) */}
+                              <button 
+                                onClick={async (e) => {
+                                  e.stopPropagation(); // Stop card from being clicked
+                                  try {
+                                    await axios.put(`http://localhost:3000/api/doctor/appointments/${apt.id}/approve`, {}, {
+                                      headers: { Authorization: `Bearer ${token}` }
+                                    });
+                                    fetchAppointments(); // Refresh the list!
+                                  } catch (err) {
+                                    console.error("Failed to approve", err);
+                                  }
+                                }}
+                                className="hidden group-hover:block bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black text-[10px] uppercase tracking-wider px-3 py-1 rounded shadow-lg transition-all"
+                              >
+                                Approve Slot
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/50">
+                              Approved
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-400">Patient ID: #{apt.patientId}</p>
                     {selectedPatient?.id === apt.id && <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 rounded-l-2xl shadow-[0_0_10px_rgba(16,185,129,0.8)]"></div>}
-                  </button>
+                  </div>
                 ))
               )}
             </div>
