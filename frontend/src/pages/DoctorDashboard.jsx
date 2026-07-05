@@ -34,6 +34,16 @@ const DoctorDashboard = () => {
     }
   }, [selectedPatient]);
 
+  useEffect(() => {
+  const fetchQueue = async () => {
+    const response = await fetch('/api/patients/queue');
+    const data = await response.json();
+    setPatients(data);
+  };
+  
+  fetchQueue();
+}, []);
+
   // --- REAL-TIME SOCKET CONNECTION ---
   useEffect(() => {
     const socket = io('http://localhost:3000');
@@ -130,6 +140,18 @@ const DoctorDashboard = () => {
       console.error(err);
     }
   };
+
+  const handlePatientSeen = async (patientId) => {
+  // 1. Tell the database they are done
+  await fetch(`/api/patients/${patientId}/complete`, {
+    method: 'PATCH',
+  });
+
+  // 2. Remove them from the React screen immediately
+  setPatients(currentPatients => 
+    currentPatients.filter(p => p._id !== patientId)
+  );
+};
 
   return (
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans pb-20 selection:bg-blue-500/30">

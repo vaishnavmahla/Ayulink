@@ -216,6 +216,34 @@ app.get('/api/patients/:id/reports', async (req, res) => {
     res.status(500).json({ error: "Failed to fetch patient history" });
   }
 });
+app.delete('/api/admin/reset-data', async (req, res) => {
+  try {
+    // 1. Wipe out the dashboard metrics (Vital Signs & History)
+    await prisma.healthReport.deleteMany({}); 
+    
+    // 2. Wipe out the medications
+    await prisma.prescription.deleteMany({}); 
+    
+    // 3. Wipe out the appointments/queue
+    await prisma.appointment.deleteMany({}); 
+
+    res.status(200).json({ 
+      success: true, 
+      message: "Data wiped: Appointments, Vitals, and Prescriptions are gone." 
+    });
+
+  } catch (error) {
+    console.error("Error wiping data:", error);
+    res.status(500).json({ success: false, message: "Server error during cleanup" });
+  }
+});
+
+app.patch('/api/patients/:id/complete', async (req, res) => {
+  const { id } = req.params;
+  // Example using Mongoose:
+  await Patient.findByIdAndUpdate(id, { status: 'completed' });
+  res.json({ message: 'Patient removed from queue' });
+});
 
 app.get('/api/my-reports', authenticateToken, async (req, res) => {
   try {
@@ -529,6 +557,12 @@ app.get('/api/setup-doctor', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+app.get('/api/patients/queue', async (req, res) => {
+  // Example using Mongoose:
+  const waitingPatients = await Patient.find({ status: 'waiting' });
+  res.json(waitingPatients);
 });
 
 // --- SERVER STARTUP ---

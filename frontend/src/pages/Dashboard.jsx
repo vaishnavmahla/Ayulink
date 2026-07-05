@@ -62,6 +62,12 @@ const Dashboard = () => {
   const token = localStorage.getItem('token');
   const name = localStorage.getItem('name');
 
+  // ✨ PASTE THE NEW CODE RIGHT HERE:
+  const today = new Date().toISOString().split("T")[0];
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() + 14); // Allows booking up to 2 weeks in advance
+  const maxDateString = maxDate.toISOString().split("T")[0];
+
   const metricsConfig = [
     { id: 'heartRate', label: 'Heart Rate', color: '#ef4444' },
     { id: 'oxygenLevel', label: 'Oxygen (SpO2)', color: '#3b82f6' },
@@ -299,19 +305,14 @@ const Dashboard = () => {
           {/* MEDS TRACKER */}
           <div className="bg-gradient-to-br from-blue-900/40 to-slate-900 p-8 rounded-[2rem] shadow-2xl border border-blue-900/30 relative overflow-hidden">
             <div className="relative z-10">
+              
               <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-blue-200"><Pill className="text-blue-400" /> Daily Medication</h3>
               <p className="text-xs text-slate-400 mb-4">Click to mark as taken today.</p>
               <div className="space-y-3">
-                {['Atorvastatin', 'Metformin'].map(med => (
-                  <button key={med} onClick={() => toggleMedication(med)} className={`w-full text-left p-4 rounded-2xl border backdrop-blur-md transition-all flex justify-between items-center group ${takenMeds.includes(med) ? 'bg-emerald-900/20 border-emerald-500/30 opacity-60' : 'bg-slate-950/50 border-slate-800/80 hover:border-blue-500/50'}`}>
-                    <div>
-                      <p className={`font-bold ${takenMeds.includes(med) ? 'text-emerald-500 line-through' : 'text-blue-400'}`}>{med}</p>
-                      <p className="text-xs text-slate-400 mt-1">{med === 'Atorvastatin' ? '10mg • Night' : '500mg • After meal'}</p>
-                    </div>
-                    <CheckCircle className={`transition-all ${takenMeds.includes(med) ? 'text-emerald-500 scale-110' : 'text-slate-700 group-hover:text-blue-400'}`} />
-                  </button>
-                ))}
-              </div>
+    <div className="p-4 border border-slate-800/50 bg-slate-800/20 rounded-2xl flex justify-center items-center">
+        <p className="text-sm text-slate-500 italic">No active prescriptions.</p>
+    </div>
+</div>
             </div>
             <div className="absolute -bottom-10 -right-10 opacity-5 text-blue-500"><Pill size={200} /></div>
           </div>
@@ -320,18 +321,11 @@ const Dashboard = () => {
         {/* APPOINTMENTS & LOGS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-slate-900/50 p-8 rounded-[2rem] border border-slate-800 shadow-2xl backdrop-blur-sm">
-                <h3 className="font-bold mb-6 flex items-center gap-2 text-purple-400"><Calendar className="text-purple-500" /> Scheduled Meetings</h3>
-                <div className="p-4 border border-purple-500/20 bg-purple-500/10 rounded-2xl flex justify-between items-center hover:border-purple-500/40 transition-colors">
-                    <div>
-                        <p className="font-bold text-slate-200">Dr. Aditi Verma</p>
-                        <p className="text-xs text-slate-400">Cardiology Specialist</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="font-bold text-purple-400">March 20</p>
-                        <p className="text-xs text-purple-500/70">10:30 AM</p>
-                    </div>
-                </div>
-            </div>
+    <h3 className="font-bold mb-6 flex items-center gap-2 text-purple-400"><Calendar className="text-purple-500" /> Scheduled Meetings</h3>
+    <div className="p-4 border border-slate-800/50 bg-slate-800/20 rounded-2xl flex justify-center items-center">
+        <p className="text-sm text-slate-500 italic">No upcoming meetings scheduled.</p>
+    </div>
+</div>
 
             <div className="bg-slate-900/50 p-8 rounded-[2rem] border border-slate-800 shadow-2xl backdrop-blur-sm">
                 <h3 className="font-bold mb-6 flex items-center gap-2 text-orange-400"><Clipboard className="text-orange-500" /> Consult History</h3>
@@ -443,9 +437,19 @@ const Dashboard = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2"><Calendar size={14}/> Select Date</label>
-                <input type="date" required min={new Date().toISOString().split("T")[0]} className="w-full bg-slate-950 border border-slate-800 text-slate-200 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none [color-scheme:dark]" value={bookingForm.date} onChange={(e) => setBookingForm({...bookingForm, date: e.target.value, time: ''})} />
+                <input 
+  type="date" 
+  required 
+  min={today} 
+  max={maxDateString} 
+  className="w-full bg-slate-950 border border-slate-800 text-slate-200 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none [color-scheme:dark]" 
+  value={bookingForm.date} 
+  onChange={(e) => setBookingForm({...bookingForm, date: e.target.value, time: ''})} 
+/>
               </div>
 
+              
+              
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2"><Clock size={14}/> Available Slots</label>
                 <div className="grid grid-cols-2 gap-3">
