@@ -4,19 +4,17 @@ import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Activity, Calendar, Clipboard, LogOut, Pill, Heart, Plus, X, Clock, User as UserIcon, Wind, Thermometer, Bot, Send, CheckCircle, MapPin, AlertOctagon, Navigation } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import { io } from 'socket.io-client';
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
-// Fix for default Leaflet icons not showing in React
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
-L.Marker.prototype.options.icon = DefaultIcon;
 
 // Custom Red Icon for Hospitals
 const hospitalIcon = new L.Icon({
@@ -27,6 +25,9 @@ const hospitalIcon = new L.Icon({
   popupAnchor: [1, -34],
   shadowSize: [41, 41]
 });
+
+// ✨ THE FIX: Socket defined OUTSIDE the component so it never loses scope!
+const socket = io('http://localhost:3000'); 
 
 const Dashboard = () => {
   const [reports, setReports] = useState([]);
@@ -75,6 +76,29 @@ const Dashboard = () => {
     if (!token) navigate('/');
     fetchHealthData();
     fetchDynamicLocation();
+  }, []);
+
+  // ✨ THE FIX: Listen for Doctor's Approval/Rejection globally
+// Listen for Doctor's Approval/Rejection/Timeout
+  useEffect(() => {
+    socket.on("appointment_approved", (data) => {
+        alert(`✅ Good news! Your appointment on ${data.date} at ${data.time} has been APPROVED!`);
+    });
+
+    socket.on("appointment_declined", (data) => {
+        alert(`❌ Sorry, the doctor is unavailable at that time. Please book another slot.`);
+    });
+
+    // Add this new listener for the 15-second timeout!
+    socket.on("appointment_expired", (data) => {
+        alert(`⏱️ Your appointment request expired because the doctor did not respond in time. Please try a different slot.`);
+    });
+
+    return () => {
+        socket.off("appointment_approved");
+        socket.off("appointment_declined");
+        socket.off("appointment_expired");
+    };
   }, []);
 
   const fetchDynamicLocation = () => {
@@ -144,14 +168,37 @@ const Dashboard = () => {
     setChatMessages(prev => [...prev, newMsg]);
     setChatInput('');
 
+    // Simulate AI processing delay
     setTimeout(() => {
-      let aiResponse = "I've logged your symptoms. Keep monitoring your vitals.";
       const inputLower = newMsg.text.toLowerCase();
+      let aiResponse = "I've logged your symptoms. Keep monitoring your vitals.";
+      let triggerEmergencyUI = false;
 
-      if (inputLower.includes('chest') || inputLower.includes('pain') || inputLower.includes('breath') || inputLower.includes('dizzy')) {
-        aiResponse = "🚨 HIGH RISK DETECTED: Your symptoms match severe cardiac distress profiles. Please seek immediate help.";
+      // 1. CRISIS / MENTAL HEALTH EMERGENCY
+      if (inputLower.includes('suicide') || inputLower.includes('die') || inputLower.includes('kill')) {
+        aiResponse = "🚨 CRISIS ALERT: You are not alone. Please reach out to emergency services immediately. I am pulling up the nearest medical facilities for you.";
+        triggerEmergencyUI = true;
+      }
+      // 2. SEVERE PHYSICAL EMERGENCY
+      else if (inputLower.includes('chest') || inputLower.includes('pain') || inputLower.includes('breath') || inputLower.includes('dizzy')) {
+        aiResponse = "🚨 HIGH RISK DETECTED: Your symptoms match severe distress profiles. Please seek immediate help.";
+        triggerEmergencyUI = true;
+      }
+      // 3. LOCATION / HOSPITAL SEARCH
+      else if (inputLower.includes('hospital') || inputLower.includes('clinic') || inputLower.includes('nearby') || inputLower.includes('nearest')) {
+        aiResponse = "I am pulling up the nearest medical facilities based on your current GPS location.";
+        triggerEmergencyUI = true;
+      }
+      // 4. COMMON SYMPTOMS (Fever, cold, etc.)
+      else if (inputLower.includes('fever') || inputLower.includes('cold') || inputLower.includes('sick')) {
+        aiResponse = "I have noted your symptoms. Please rest and stay hydrated. If your condition worsens, please book an appointment with a doctor.";
+      }
+
+      // If any critical intent was detected, reveal the Map/Emergency button
+      if (triggerEmergencyUI) {
         setShowEmergency(true);
       }
+
       setChatMessages(prev => [...prev, { role: 'ai', text: aiResponse }]);
     }, 1000);
   };
@@ -168,13 +215,12 @@ const Dashboard = () => {
     e.preventDefault();
     try {
       await axios.post('http://localhost:3000/api/appointments', bookingForm, { headers: { Authorization: `Bearer ${token}` } });
-      alert("Appointment Confirmed!");
+      alert("Request Sent! ⏳ Waiting for the Doctor to approve your slot.");
       setIsBookingOpen(false);
       setBookingForm({ doctorId: '', date: '', time: '' });
     } catch (err) { alert(err.response?.data?.error || "Failed to book appointment."); }
   };
 
-  // Generate dynamic hospitals around user's location
   const getMockHospitals = () => {
     if (!envData.lat) return [];
     return [
@@ -363,11 +409,11 @@ const Dashboard = () => {
                         <strong className="block text-sm">{hospital.name}</strong>
                         <span className="text-xs text-red-600 font-bold">{hospital.type} Facility</span>
                         <button 
-  onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&origin=${envData.lat},${envData.lon}&destination=${hospital.lat},${hospital.lon}`, '_blank')}
-  className="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded flex items-center justify-center gap-1 transition-colors font-bold shadow-lg active:scale-95"
->
-  <Navigation size={14}/> Start Route
-</button>
+                          onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&origin=${envData.lat},${envData.lon}&destination=${hospital.lat},${hospital.lon}`, '_blank')}
+                          className="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded flex items-center justify-center gap-1 transition-colors font-bold shadow-lg active:scale-95"
+                        >
+                          <Navigation size={14}/> Start Route
+                        </button>
                       </div>
                     </Popup>
                   </Marker>

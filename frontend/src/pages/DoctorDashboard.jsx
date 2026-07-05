@@ -5,7 +5,6 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Activity, Users, Calendar, ClipboardList, LogOut, Clock, FileText, ActivitySquare, Heart, X } from 'lucide-react';
 import { io } from 'socket.io-client';
 
-
 const DoctorDashboard = () => {
   const [appointments, setAppointments] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -37,24 +36,19 @@ const DoctorDashboard = () => {
 
   // --- REAL-TIME SOCKET CONNECTION ---
   useEffect(() => {
-    // 1. Connect to the backend tunnel
     const socket = io('http://localhost:3000');
 
-    // 2. Listen for the exact event name we used in the backend
     socket.on("new_booking_alert", (data) => {
-      // Check if the alert is actually for THIS logged-in doctor
-      // (Assuming Dr. Aditi is doctor ID 1 right now)
-      if (data.doctorId === 1) { 
-        // Play a browser notification sound (optional but cool!)
+        console.log("Socket alert received!", data);
+
+        // Play a browser notification sound
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         audio.play().catch(e => console.log("Audio blocked by browser"));
-        
+
         // Refresh the queue automatically!
         fetchAppointments(); 
-      }
     });
 
-    // Cleanup the tunnel when the doctor logs out or leaves the page
     return () => socket.disconnect();
   }, []);
 
@@ -91,17 +85,46 @@ const DoctorDashboard = () => {
     }
   };
 
+  // ✨ THE FIX: Approves and lets the backend tell the patient!
+  const handleApproveAppointment = async (appointmentId) => {
+    try {
+        await axios.put(`http://localhost:3000/api/doctor/appointments/${appointmentId}/approve`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        fetchAppointments(); 
+    } catch (err) {
+        console.error("Failed to approve", err);
+    }
+  };
+
+  const handleRejectAppointment = async (appointmentId) => {
+      try {
+          await axios.put(`http://localhost:3000/api/doctor/appointments/${appointmentId}/reject`, {}, {
+              headers: { Authorization: `Bearer ${token}` }
+          });
+          fetchAppointments(); 
+      } catch (err) {
+          console.error("Failed to reject", err);
+      }
+  };
+
   const handlePrescriptionSubmit = async (e) => {
     e.preventDefault();
     try {
       await axios.post(`http://localhost:3000/api/doctor/patients/${selectedPatient.patientId}/reports`, prescriptionForm, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
       alert("Success! Secure clinical data synced to patient dashboard.");
       setIsPrescriptionOpen(false);
       setPrescriptionForm({ bloodPressure: '', sugarLevel: '', heartRate: '', notes: '' });
-      // Instantly refresh the graph to show the new data point!
-      fetchPatientReports(selectedPatient.patientId);
+      
+      // ✨ THE FIX: Immediately remove the patient from the local UI queue
+      setAppointments(prev => prev.filter(apt => apt.id !== selectedPatient.id));
+      
+      // ✨ THE FIX: Clear the right-side command center so it shows the "Select a patient" placeholder
+      setSelectedPatient(null);
+
     } catch (err) {
       alert("Failed to save prescription.");
       console.error(err);
@@ -148,7 +171,7 @@ const DoctorDashboard = () => {
               ) : appointments.length === 0 ? (
                 <p className="text-slate-500 text-center mt-10">No appointments scheduled for today.</p>
               ) : (
-                appointments.map((apt) => (
+                appointments.filter(apt => apt.status === 'PENDING' || apt.status === 'APPROVED').map((apt) => (
                   <div 
                     key={apt.id} 
                     onClick={() => setSelectedPatient(apt)}
@@ -167,35 +190,36 @@ const DoctorDashboard = () => {
                         </span>
                         
                         {/* DYNAMIC BADGE & BUTTON ZONE */}
+                        {/* DYNAMIC BADGE & BUTTON ZONE */}
                         <div className="h-[24px] flex items-center justify-end">
                           {apt.status === 'PENDING' ? (
                             <>
-                              {/* Orange Badge (Hides on Hover) */}
                               <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded border border-amber-500/50 animate-pulse group-hover:hidden">
                                 Pending Request
                               </span>
                               
-                              {/* Green Button (Shows on Hover) */}
-                              <button 
-                                onClick={async (e) => {
-                                  e.stopPropagation(); // Stop card from being clicked
-                                  try {
-                                    await axios.put(`http://localhost:3000/api/doctor/appointments/${apt.id}/approve`, {}, {
-                                      headers: { Authorization: `Bearer ${token}` }
-                                    });
-                                    fetchAppointments(); // Refresh the list!
-                                  } catch (err) {
-                                    console.error("Failed to approve", err);
-                                  }
-                                }}
-                                className="hidden group-hover:block bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black text-[10px] uppercase tracking-wider px-3 py-1 rounded shadow-lg transition-all"
-                              >
-                                Approve Slot
-                              </button>
+                              <div className="hidden group-hover:flex gap-2">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleApproveAppointment(apt.id); }}
+                                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black text-[10px] uppercase tracking-wider px-3 py-1 rounded shadow-lg transition-all"
+                                >
+                                  Approve
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleRejectAppointment(apt.id); }}
+                                  className="bg-red-500 hover:bg-red-400 text-slate-900 font-black text-[10px] uppercase tracking-wider px-3 py-1 rounded shadow-lg transition-all"
+                                >
+                                  Reject
+                                </button>
+                              </div>
                             </>
-                          ) : (
+                          ) : apt.status === 'APPROVED' ? (
                             <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/50">
                               Approved
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 px-2 py-0.5 rounded border border-red-500/50">
+                              Cancelled
                             </span>
                           )}
                         </div>
@@ -226,12 +250,18 @@ const DoctorDashboard = () => {
                       <ActivitySquare size={16} className="text-emerald-500"/> Live Biometrics Synced
                     </p>
                   </div>
-                  <button 
-                    onClick={() => setIsPrescriptionOpen(true)}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_0_15px_rgba(79,70,229,0.4)] transition-all flex items-center gap-2 active:scale-95"
-                  >
-                    <FileText size={18}/> Write Prescription
-                  </button>
+                  {selectedPatient.status === 'APPROVED' ? (
+                    <button 
+                      onClick={() => setIsPrescriptionOpen(true)}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_0_15px_rgba(79,70,229,0.4)] transition-all flex items-center gap-2 active:scale-95"
+                    >
+                      <FileText size={18}/> Write Prescription
+                    </button>
+                  ) : (
+                    <div className="bg-slate-800/50 text-slate-500 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 cursor-not-allowed border border-slate-700">
+                      <FileText size={18}/> Prescription Locked
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-grow flex flex-col gap-6">
